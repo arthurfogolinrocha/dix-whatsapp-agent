@@ -1,0 +1,235 @@
+{
+  "name": "DIX BPO - Agente WhatsApp Suporte",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-whatsapp",
+        "options": {}
+      },
+      "id": "node-webhook",
+      "name": "Webhook WhatsApp (Evolution API / Meta)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalização do payload de entrada da Evolution API ou Z-API\nconst body = $input.first().json.body || $input.first().json;\n\nconst remoteJid = body.data?.key?.remoteJid || body.sender || body.from || '5511999999999@s.whatsapp.net';\nconst messageType = body.data?.messageType || body.messageType || (body.data?.message?.audioMessage ? 'audioMessage' : 'conversation');\nconst textMessage = body.data?.message?.conversation || body.data?.message?.extendedTextMessage?.text || body.text || '';\nconst audioUrl = body.data?.message?.audioMessage?.url || body.audioUrl || null;\nconst base64Audio = body.data?.message?.base64 || body.base64 || null;\n\nreturn {\n  remoteJid,\n  messageType,\n  textMessage: textMessage.trim(),\n  audioUrl,\n  base64Audio,\n  isAudio: messageType === 'audioMessage' || !!audioUrl || !!base64Audio\n};"
+      },
+      "id": "node-parse",
+      "name": "Normalizar Mensagem Recebida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        460,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.isAudio }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-if-audio",
+      "name": "É Mensagem de Áudio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        680,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "transcribe",
+        "model": "whisper-1",
+        "options": {
+          "language": "pt"
+        }
+      },
+      "id": "node-whisper",
+      "name": "OpenAI Whisper (Speech to Text)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        920,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Unifica o texto seja ele vindo de áudio (transcrito) ou direto em texto\nconst inputData = $('Normalizar Mensagem Recebida').first().json;\nconst transcription = $json.text || inputData.textMessage || '';\n\nreturn {\n  remoteJid: inputData.remoteJid,\n  rawInput: transcription,\n  originalWasAudio: inputData.isAudio\n};"
+      },
+      "id": "node-merge-text",
+      "name": "Consolidar Texto Recebido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1140,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "Você é o Agente de Inteligência Artificial de Pré-Atendimento da DIX BPO.\nSua função é analisar a mensagem do usuário e extrair estruturadamente:\n- nome (se fornecido)\n- email (se fornecido)\n- telefone (se fornecido)\n- descricao_problema (resumo do ocorrido)\n- intencao_confirmacao (SIM se o usuário confirmou que os dados estão certos, NÃO se ele recusou/pediu correção, ou DADOS se ele está enviando as informações).\n\nResponda ESTRITAMENTE em formato JSON com esses campos."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.rawInput }}"
+            }
+          ]
+        },
+        "jsonOutput": true
+      },
+      "id": "node-llm-extract",
+      "name": "Agente IA (Extração & Intenção)",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const extracted = $json.message?.content ? JSON.parse($json.message.content) : $json;\nconst user = $('Consolidar Texto Recebido').first().json;\n\n// Decisão de fluxo com base no estado e na intenção\nconst intencao = (extracted.intencao_confirmacao || '').toUpperCase();\n\nif (intencao.includes('SIM') || intencao.includes('CORRETO') || intencao.includes('CONFIRMO')) {\n  return {\n    status: 'CONFIRMADO',\n    protocolo: 'DIX-' + Math.floor(100000 + Math.random() * 900000),\n    nome: extracted.nome || 'Cliente',\n    mensagem: `✅ Perfeito! Seu chamado foi aberto com sucesso.\\n\\n📋 *Protocolo:* DIX-${Math.floor(100000 + Math.random() * 900000)}\\n👤 *Nome:* ${extracted.nome}\\n📧 *E-mail:* ${extracted.email}\\n📱 *Telefone:* ${extracted.telefone}\\n📝 *Ocorrência:* ${extracted.descricao_problema}\\n\\nUm de nossos analistas do suporte humanizado entrará em contato em instantes. Por favor, aguarde!`\n  };\n} else if (intencao.includes('NÃO') || intencao.includes('NAO') || intencao.includes('ERRADO')) {\n  return {\n    status: 'RECUSADO',\n    mensagem: `⚠️ Sem problemas! Vamos corrigir seus dados.\\n\\nPor favor, envie novamente (por texto ou áudio) seu *Nome completo*, *E-mail*, *Celular* e o detalhe da sua ocorrência:`\n  };\n} else {\n  return {\n    status: 'VALIDACAO',\n    mensagem: `👋 Olá! Recebemos seus dados.\\n\\nPor favor, *confirme se as informações abaixo estão corretas*:\\n\\n👤 *Nome:* ${extracted.nome || 'Não identificado'}\\n📧 *E-mail:* ${extracted.email || 'Não identificado'}\\n📱 *Celular:* ${extracted.telefone || user.remoteJid.replace('@s.whatsapp.net', '')}\\n📝 *Ocorrência:* ${extracted.descricao_problema || 'Suporte técnico'}\\n\\n👉 Responda com *SIM* para confirmar e abrir o chamado, ou *NÃO* para reenviar os dados.`\n  };\n}"
+      },
+      "id": "node-state-logic",
+      "name": "Lógica de Estado (Confirmação / Recusa / Abertura)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [
+        1580,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.whatsapp-provider.com/message/sendText",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Consolidar Texto Recebido').first().json.remoteJid }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.mensagem }}"
+            }
+          ]
+        }
+      },
+      "id": "node-send-whatsapp",
+      "name": "Enviar Resposta WhatsApp",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [
+        1800,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp (Evolution API / Meta)": {
+      "main": [
+        [
+          {
+            "node": "Normalizar Mensagem Recebida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar Mensagem Recebida": {
+      "main": [
+        [
+          {
+            "node": "É Mensagem de Áudio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É Mensagem de Áudio?": {
+      "main": [
+        [
+          {
+            "node": "OpenAI Whisper (Speech to Text)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consolidar Texto Recebido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Whisper (Speech to Text)": {
+      "main": [
+        [
+          {
+            "node": "Consolidar Texto Recebido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consolidar Texto Recebido": {
+      "main": [
+        [
+          {
+            "node": "Agente IA (Extração & Intenção)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agente IA (Extração & Intenção)": {
+      "main": [
+        [
+          {
+            "node": "Lógica de Estado (Confirmação / Recusa / Abertura)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica de Estado (Confirmação / Recusa / Abertura)": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

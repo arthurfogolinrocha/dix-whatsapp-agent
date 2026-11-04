@@ -1,9 +1,11 @@
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '20mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Simulação de banco em memória para sessão do usuário
 const sessions = {};
@@ -127,3 +129,4 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`🚀 Agente WhatsApp DIX BPO rodando na porta ${PORT}`);
 });
+

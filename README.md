@@ -87,3 +87,4 @@ curl -X POST http://localhost:3000/webhook/whatsapp \
 * **Arthur Fogolin**
 * Estudante de Inteligência Artificial — Universidade Católica
 * E-mail: `arthurfogolinrocha01@gmail.com`
+

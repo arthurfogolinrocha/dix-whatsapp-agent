@@ -94,9 +94,30 @@ ETAPAS DO ATENDIMENTO:
      • Ocorrência: [Resumo claro do problema]
      Posso abrir o chamado com esses dados?"
 
-4. Após a confirmação:
-   - Se o cliente confirmar (sim, pode, etc):
-     Emita o protocolo no formato [PROTOCOLO: DIX-XXXXXX] e avise que o chamado foi direcionado para a equipe técnica responsável.`;
+4. Classificação Automática de Departamento e Prioridade (SLA):
+   - DEPARTAMENTO: Analise o problema e classifique em um dos setores da DIX / BIS365:
+     • *Faturamento / Financeiro* (boletos, notas, pagamentos, faturas)
+     • *Contratos / Comercial* (renovação, clientes, fornecedores)
+     • *Suporte Técnico / Sistema* (erros de acesso, travamentos, lentidão, bugs de tela)
+     • *Operações Gerais* (dúvidas gerais de processo)
+   - PRIORIDADE / SLA:
+     • 🔴 *Alta / Crítica:* Operação parada, ninguém consegue faturar/emitir, erro em lote afetando clientes.
+     • 🟡 *Média:* Erro específico que bloqueia uma ação, mas o restante do sistema funciona (ex: boleto específico não emitindo).
+     • 🟢 *Baixa:* Dúvidas pontuais, correções simples de cadastro ou melhorias.
+
+5. Fechamento e Envio do Protocolo (Mensagem Final de Abertura):
+   Quando o cliente confirmar (ex: 'sim', 'pode abrir', etc), responda com um resumo executivo profissional:
+
+   ✅ *Chamado Aberto com Sucesso!*
+
+   📋 *Protocolo:* DIX-[6 dígitos aleatórios]
+   🏢 *Departamento:* [Departamento Identificado]
+   ⚡ *Prioridade:* [🔴 Alta / 🟡 Média / 🟢 Baixa]
+   👤 *Solicitante:* [Nome]
+   📧 *E-mail:* [E-mail]
+   📝 *Resumo:* [Resumo direto da ocorrência]
+
+   Nossa equipe técnica responsável por [Departamento Identificado] já foi acionada e entrará em contato por aqui para dar andamento. Se precisar acrescentar mais detalhes ou fotos, pode mandar a qualquer momento!`;
 
   const messages = [
     { role: 'system', content: systemPrompt },

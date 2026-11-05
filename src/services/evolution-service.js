@@ -58,6 +58,53 @@ async function getQrCode() {
 }
 
 /**
+ * Envia status de presença no WhatsApp ('composing' para digitando... ou 'recording' para gravando áudio...)
+ * @param {string} remoteJid 
+ * @param {'composing' | 'recording' | 'paused'} status 
+ */
+async function sendPresence(remoteJid, status = 'composing') {
+  try {
+    const number = remoteJid.replace('@s.whatsapp.net', '');
+    await fetch(`${EVOLUTION_API_URL}/chat/sendPresence/${INSTANCE_NAME}`, {
+      method: 'POST',
+      headers: {
+        'apikey': EVOLUTION_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: number,
+        presence: status,
+        delay: 1200
+      })
+    });
+  } catch (err) {
+    // Ignora erro de presença silenciosamente
+  }
+}
+
+/**
+ * Marca as mensagens da conversa como lidas (dois tracinhos azuis)
+ * @param {string} remoteJid 
+ */
+async function markMessageAsRead(remoteJid) {
+  try {
+    const number = remoteJid.replace('@s.whatsapp.net', '');
+    await fetch(`${EVOLUTION_API_URL}/chat/markMessageAsRead/${INSTANCE_NAME}`, {
+      method: 'POST',
+      headers: {
+        'apikey': EVOLUTION_API_KEY,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        readMessages: [{
+          remoteJid: remoteJid
+        }]
+      })
+    });
+  } catch (err) {}
+}
+
+/**
  * Envia mensagem de texto para um número no WhatsApp
  * @param {string} remoteJid 
  * @param {string} text 
@@ -137,7 +184,10 @@ module.exports = {
   ensureInstance,
   getQrCode,
   sendTextMessage,
+  sendPresence,
+  markMessageAsRead,
   getBase64FromMediaMessage,
   setWebhook,
   INSTANCE_NAME
 };
+

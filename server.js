@@ -7,6 +7,8 @@ const {
   ensureInstance, 
   getQrCode, 
   sendTextMessage, 
+  sendPresence,
+  markMessageAsRead,
   getBase64FromMediaMessage,
   setWebhook,
   INSTANCE_NAME 
@@ -164,7 +166,19 @@ app.post('/webhook/whatsapp', async (req, res) => {
     const session = sessions[cleanNumber];
     console.log(`💬 [Processando IA] Para ${cleanNumber}: "${userText}"`);
 
+    // --- COMPORTAMENTO HUMANO NO WHATSAPP ---
+    // 1. Marca como lida a mensagem do cliente (2 tracinhos azuis)
+    await markMessageAsRead(remoteJid);
+
+    // 2. Simula o "Digitando..." no WhatsApp
+    await sendPresence(remoteJid, 'composing');
+
+    // 3. Processa a resposta com a LLM
     const result = await processAgentConversation(session.history, userText, session.state);
+
+    // 4. Delay proporcional ao tamanho da resposta para parecer digitação real (mínimo 1.5s, máx 3.5s)
+    const typingTimeMs = Math.min(3500, Math.max(1500, result.replyText.length * 25));
+    await new Promise(resolve => setTimeout(resolve, typingTimeMs));
 
     // Atualiza histórico (mantém últimas 8 mensagens para contexto)
     session.history.push({ role: 'user', content: userText });
@@ -175,13 +189,55 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
     console.log(`🤖 [Resposta Gerada]:\n${result.replyText}\n`);
 
-    // 7. Despacha mensagem real de volta no WhatsApp do usuário
+    // 5. Despacha mensagem real de volta no WhatsApp do usuário
     await sendTextMessage(remoteJid, result.replyText);
     console.log(`🚀 Mensagem enviada com sucesso para ${cleanNumber} no WhatsApp!\n`);
 
   } catch (err) {
     console.error('❌ Erro no webhook do WhatsApp:', err);
   }
+});
+
+// Endpoint de Teste Direto pelo Painel Web
+app.post('/api/test-chat', async (req, res) => {
+  const { message, audioBase64, mimeType } = req.body;
+  const testPhone = 'TESTE_LOCAL';
+
+  if (!sessions[testPhone]) {
+    sessions[testPhone] = { history: [], state: 'START' };
+  }
+
+  const session = sessions[testPhone];
+  let processedText = message || '';
+
+  // Se veio áudio real gravado do microfone do navegador!
+  if (audioBase64) {
+    console.log(`🎙️ [Teste Local] Áudio recebido do microfone! Transcrevendo com Groq Whisper...`);
+    processedText = await transcribeAudioBase64(audioBase64, mimeType || 'audio/webm');
+    console.log(`📝 [Transcrito com Sucesso]: "${processedText}"`);
+  }
+
+  if (!processedText || !processedText.trim()) {
+    return res.json({
+      reply: "Não consegui ouvir nada no áudio gravado. Pode tentar falar mais perto do microfone?",
+      transcription: ""
+    });
+  }
+
+  const result = await processAgentConversation(session.history, processedText, session.state);
+
+  session.history.push({ role: 'user', content: processedText });
+  session.history.push({ role: 'assistant', content: result.replyText });
+  if (session.history.length > 8) {
+    session.history = session.history.slice(-8);
+  }
+
+  res.json({
+    reply: result.replyText,
+    transcription: audioBase64 ? processedText : null,
+    ticketOpened: result.ticketOpened,
+    protocol: result.protocol
+  });
 });
 
 // Inicialização do Servidor

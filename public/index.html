@@ -109,6 +109,47 @@
 
     </div>
 
+    <!-- Seção 2: Chat Interativo de Teste Imediato (Pra você ver a IA respondendo agora mesmo) -->
+    <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
+      <div class="flex items-center justify-between">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+            <i class="fa-solid fa-comments"></i>
+            Testar a Inteligência do Agente Agora (Sem precisar do WhatsApp)
+          </h2>
+          <p class="text-xs text-slate-400">Converse diretamente com o mesmo cérebro da IA (Llama 3.3 70B) que responderá no WhatsApp.</p>
+        </div>
+        <button onclick="resetTestChat()" class="text-xs bg-slate-800 hover:bg-slate-700 px-3 py-1.5 rounded-lg border border-slate-700">
+          Limpar Conversa
+        </button>
+      </div>
+
+      <!-- Caixa de Chat -->
+      <div id="testChatBox" class="h-64 bg-slate-950 rounded-xl border border-slate-800 p-4 overflow-y-auto space-y-3 font-sans text-xs">
+        <div class="bg-slate-800/60 text-slate-300 p-3 rounded-xl max-w-[85%] border border-slate-700/50">
+          👋 Olá! Sou a Bia do suporte DIX BPO. Como posso te ajudar hoje?
+        </div>
+      </div>
+
+      <!-- Barra de Input de Teste -->
+      <div class="flex items-center gap-2">
+        <input id="txtTestInput" type="text" placeholder="Digite uma mensagem ou ocorrência (ou use o microfone ao lado)..." 
+               onkeydown="if(event.key === 'Enter') sendTestMessage()"
+               class="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-2.5 text-xs text-slate-100 focus:outline-none focus:ring-1 focus:ring-emerald-500">
+        
+        <!-- Botão Gravar Áudio do Microfone -->
+        <button id="btnRecordAudio" onclick="toggleAudioRecording()" title="Gravar Áudio com sua Voz"
+                class="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs rounded-xl border border-slate-700 transition flex items-center gap-2">
+          <i id="iconMic" class="fa-solid fa-microphone text-sm"></i>
+          <span id="lblMic">Gravar Áudio</span>
+        </button>
+
+        <button onclick="sendTestMessage()" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-emerald-600/20">
+          Enviar
+        </button>
+      </div>
+    </div>
+
   </div>
 
   <script>
@@ -188,6 +229,176 @@
       });
       alert('Configurações de segurança salvas com sucesso!');
       fetchStatus();
+    }
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let isRecording = false;
+
+    async function toggleAudioRecording() {
+      const btn = document.getElementById('btnRecordAudio');
+      const icon = document.getElementById('iconMic');
+      const lbl = document.getElementById('lblMic');
+
+      if (!isRecording) {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+          mediaRecorder = new MediaRecorder(stream);
+          audioChunks = [];
+
+          mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = async () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = async () => {
+              const base64Audio = reader.result;
+              await sendTestAudioBlob(base64Audio);
+            };
+            stream.getTracks().forEach(track => track.stop());
+          };
+
+          mediaRecorder.start();
+          isRecording = true;
+          btn.className = "px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-rose-600/30 transition flex items-center gap-2 animate-pulse";
+          icon.className = "fa-solid fa-stop text-sm";
+          lbl.innerText = "Parar e Enviar";
+        } catch (err) {
+          alert('Não foi possível acessar o microfone: ' + err.message);
+        }
+      } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        btn.className = "px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 font-semibold text-xs rounded-xl border border-slate-700 transition flex items-center gap-2";
+        icon.className = "fa-solid fa-microphone text-sm";
+        lbl.innerText = "Gravar Áudio";
+      }
+    }
+
+    async function sendTestAudioBlob(base64Audio) {
+      const box = document.getElementById('testChatBox');
+
+      // Balãozinho de áudio do usuário
+      box.innerHTML += `
+        <div class="flex justify-end">
+          <div class="bg-emerald-600 text-white p-3 rounded-xl max-w-[85%] flex items-center gap-2">
+            <i class="fa-solid fa-microphone text-sm animate-pulse"></i>
+            <span>Áudio enviado (processando Whisper STT...)</span>
+          </div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+
+      const typingId = 'typing_' + Date.now();
+      box.innerHTML += `
+        <div id="${typingId}" class="flex justify-start">
+          <div class="bg-slate-800 text-slate-400 p-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-slate-700/50">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Bia ouvindo áudio e digitando...
+          </div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+
+      try {
+        const res = await fetch('/api/test-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ audioBase64: base64Audio, mimeType: 'audio/webm' })
+        });
+        const data = await res.json();
+
+        const typingEl = document.getElementById(typingId);
+        if (typingEl) typingEl.remove();
+
+        // Se transcreveu, mostra a transcrição
+        if (data.transcription) {
+          box.innerHTML += `
+            <div class="flex justify-end">
+              <div class="text-[10px] text-emerald-400 font-mono italic -mt-2 mb-1">
+                🗣️ Transcrição: "${data.transcription}"
+              </div>
+            </div>
+          `;
+        }
+
+        // Resposta da Bia
+        box.innerHTML += `
+          <div class="flex justify-start">
+            <div class="bg-slate-800/80 text-slate-200 p-3 rounded-xl max-w-[85%] border border-slate-700/50 whitespace-pre-line">
+              ${data.reply}
+            </div>
+          </div>
+        `;
+        box.scrollTop = box.scrollHeight;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    async function sendTestMessage() {
+      const input = document.getElementById('txtTestInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      input.value = '';
+      const box = document.getElementById('testChatBox');
+
+      // Adiciona mensagem do usuário
+      box.innerHTML += `
+        <div class="flex justify-end">
+          <div class="bg-emerald-600 text-white p-3 rounded-xl max-w-[85%] whitespace-pre-line">
+            ${text}
+          </div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+
+      // Mostra digitando...
+      const typingId = 'typing_' + Date.now();
+      box.innerHTML += `
+        <div id="${typingId}" class="flex justify-start">
+          <div class="bg-slate-800 text-slate-400 p-2.5 rounded-xl text-xs flex items-center gap-1.5 border border-slate-700/50">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Bia digitando...
+          </div>
+        </div>
+      `;
+      box.scrollTop = box.scrollHeight;
+
+      try {
+        const res = await fetch('/api/test-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: text })
+        });
+        const data = await res.json();
+
+        // Remove digitando
+        const typingEl = document.getElementById(typingId);
+        if (typingEl) typingEl.remove();
+
+        // Adiciona resposta
+        box.innerHTML += `
+          <div class="flex justify-start">
+            <div class="bg-slate-800/80 text-slate-200 p-3 rounded-xl max-w-[85%] border border-slate-700/50 whitespace-pre-line">
+              ${data.reply}
+            </div>
+          </div>
+        `;
+        box.scrollTop = box.scrollHeight;
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function resetTestChat() {
+      document.getElementById('testChatBox').innerHTML = `
+        <div class="bg-slate-800/60 text-slate-300 p-3 rounded-xl max-w-[85%] border border-slate-700/50">
+          👋 Olá! Sou a Bia do suporte DIX BPO. Como posso te ajudar hoje?
+        </div>
+      `;
     }
 
     // Polling a cada 5 segundos para atualizar status do QR Code

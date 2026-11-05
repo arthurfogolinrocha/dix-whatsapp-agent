@@ -278,6 +278,8 @@
       }
     }
 
+    let currentSessionId = 'SESSION_' + Date.now();
+
     async function sendTestAudioBlob(base64Audio) {
       const box = document.getElementById('testChatBox');
 
@@ -306,7 +308,7 @@
         const res = await fetch('/api/test-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ audioBase64: base64Audio, mimeType: 'audio/webm' })
+          body: JSON.stringify({ audioBase64: base64Audio, mimeType: 'audio/webm', sessionId: currentSessionId })
         });
         const data = await res.json();
 
@@ -371,7 +373,7 @@
         const res = await fetch('/api/test-chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: text })
+          body: JSON.stringify({ message: text, sessionId: currentSessionId })
         });
         const data = await res.json();
 
@@ -393,7 +395,13 @@
       }
     }
 
-    function resetTestChat() {
+    async function resetTestChat() {
+      await fetch('/api/reset-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId: currentSessionId })
+      });
+      currentSessionId = 'SESSION_' + Date.now();
       document.getElementById('testChatBox').innerHTML = `
         <div class="bg-slate-800/60 text-slate-300 p-3 rounded-xl max-w-[85%] border border-slate-700/50">
           👋 Olá! Sou a Bia do suporte DIX BPO. Como posso te ajudar hoje?

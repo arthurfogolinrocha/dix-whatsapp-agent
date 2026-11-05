@@ -200,8 +200,9 @@ app.post('/webhook/whatsapp', async (req, res) => {
 
 // Endpoint de Teste Direto pelo Painel Web
 app.post('/api/test-chat', async (req, res) => {
-  const { message, audioBase64, mimeType } = req.body;
-  const testPhone = 'TESTE_LOCAL';
+  const { message, audioBase64, mimeType, sessionId } = req.body;
+  // Cria sessão única por aba/navegador para nunca misturar testes anteriores
+  const testPhone = sessionId || 'TESTE_LOCAL_' + Date.now();
 
   if (!sessions[testPhone]) {
     sessions[testPhone] = { history: [], state: 'START' };
@@ -236,8 +237,18 @@ app.post('/api/test-chat', async (req, res) => {
     reply: result.replyText,
     transcription: audioBase64 ? processedText : null,
     ticketOpened: result.ticketOpened,
-    protocol: result.protocol
+    protocol: result.protocol,
+    sessionId: testPhone
   });
+});
+
+// Endpoint para resetar conversa no painel
+app.post('/api/reset-chat', (req, res) => {
+  const { sessionId } = req.body;
+  if (sessionId && sessions[sessionId]) {
+    delete sessions[sessionId];
+  }
+  res.json({ success: true });
 });
 
 // Inicialização do Servidor

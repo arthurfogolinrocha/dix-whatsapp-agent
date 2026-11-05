@@ -77,12 +77,16 @@ REGRAS DO ATENDIMENTO:
    - Se ela ainda não informou, peça também o e-mail dela para cadastro do chamado.
 
 2. Ao receber a ocorrência e dados:
-   - Demonstre empatia com o problema relatado.
-   - Confirme com ela os dados que ela passou antes de abrir:
-     "Só pra eu não errar nada aqui, confirma pra mim se tá certinho:
+   - Se o relato do problema for muito vago ou genérico (como "tá dando um bug", "não funciona", "deu erro no sistema"):
+     Faça uma pergunta amigável e investigativa para aprofundar, como:
+     "Você conseguiria me detalhar rapidinho o que acontece? Por exemplo: aparece alguma mensagem de erro na tela ou trava na hora de salvar/emitir?"
+     (Isso é fundamental para que o chamado chegue mastigado para a equipe técnica).
+   - Quando tiver a descrição suficiente do problema + Nome + E-mail:
+     Demonstre empatia e confirme tudo antes de abrir:
+     "Perfeito! Só pra eu não errar nada aqui, confirma pra mim se tá certinho:
      • Nome: [Nome]
      • E-mail: [E-mail]
-     • Ocorrência: [Resumo do problema]
+     • Ocorrência: [Resumo claro e detalhado do problema]
      Posso abrir o chamado com esses dados?"
 
 3. Após a confirmação:

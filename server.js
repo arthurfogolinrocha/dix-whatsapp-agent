@@ -1,132 +1,200 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const { transcribeAudioBase64, processAgentConversation } = require('./src/services/ai-service');
+const { 
+  ensureInstance, 
+  getQrCode, 
+  sendTextMessage, 
+  getBase64FromMediaMessage,
+  setWebhook,
+  INSTANCE_NAME 
+} = require('./src/services/evolution-service');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '20mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Simulação de banco em memória para sessão do usuário
+// Estado em memória das sessões (por telefone)
 const sessions = {};
 
-// Função auxiliar para simulação de Whisper / STT
-function simulateWhisperSTT(audioInfo) {
-  // Em produção, envia o arquivo para a API OpenAI / Whisper / Groq
-  return audioInfo.mockTranscript || "Olá, meu nome é Arthur Fogolin, meu e-mail é arthur@exemplo.com e meu celular é 11988887777. Estou com problema para acessar o portal financeiro.";
+// Status em tempo real das configurações de segurança
+let agentSettings = {
+  enabled: process.env.AGENT_ENABLED !== 'false',
+  whitelistOnly: process.env.WHITELIST_ONLY === 'true',
+  whitelistNumbers: (process.env.WHITELIST_NUMBERS || '').split(',').map(s => s.trim()).filter(Boolean),
+  triggerKeyword: (process.env.TRIGGER_KEYWORD || '').trim().toLowerCase()
+};
+
+console.log('🛡️ Configurações de Segurança Carregadas:');
+console.log(`- Agente Ativo: ${agentSettings.enabled ? '✅ SIM' : '❌ NÃO'}`);
+console.log(`- Modo Whitelist: ${agentSettings.whitelistOnly ? '🔒 ATIVO' : '🌐 ABERTO'}`);
+if (agentSettings.whitelistNumbers.length > 0) {
+  console.log(`- Números na Whitelist: ${agentSettings.whitelistNumbers.join(', ')}`);
 }
 
-// Endpoint do Webhook de WhatsApp (Evolution API / Z-API / WhatsApp Cloud)
-app.post('/webhook/whatsapp', (req, res) => {
-  const { sender, messageType, text, audio } = req.body;
-  const userPhone = sender || '5511999999999';
+// ==========================================
+// ENDPOINTS DO PAINEL WEB DE CONTROLE
+// ==========================================
 
-  if (!sessions[userPhone]) {
-    sessions[userPhone] = { step: 'AWAITING_DATA', data: {} };
-  }
-
-  const session = sessions[userPhone];
-  let processedText = text || '';
-
-  // Processamento de Áudio (STT)
-  if (messageType === 'audio' || audio) {
-    processedText = simulateWhisperSTT(audio || {});
-  }
-
-  let botReply = '';
-
-  switch (session.step) {
-    case 'START':
-    case 'AWAITING_DATA':
-      // Se for a primeira mensagem ou recepção
-      if (!processedText || processedText.toLowerCase() === 'oi' || processedText.toLowerCase() === 'olá') {
-        botReply = "👋 Olá! Seja bem-vindo ao suporte DIX BPO.\n\n" +
-                   "Por favor, me informe (por texto ou por áudio) os seus dados:\n" +
-                   "• *Nome Completo*\n" +
-                   "• *E-mail*\n" +
-                   "• *Celular*\n\n" +
-                   "Você também pode enviar um áudio ou imagem explicando com detalhes a ocorrência!";
-        session.step = 'COLLECTING_INFO';
-      } else {
-        // Já enviou dados no primeiro contato
-        session.data.rawInput = processedText;
-        session.data.extracted = parseUserData(processedText, userPhone);
-        session.step = 'CONFIRMATION';
-
-        botReply = `Perfeito! Transcrevemos e organizamos suas informações.\n\n` +
-                   `Por favor, *confirme se os dados abaixo estão corretos*:\n\n` +
-                   `👤 *Nome:* ${session.data.extracted.nome}\n` +
-                   `📧 *E-mail:* ${session.data.extracted.email}\n` +
-                   `📱 *Celular:* ${session.data.extracted.celular}\n` +
-                   `📝 *Ocorrência:* ${session.data.extracted.ocorrencia}\n\n` +
-                   `👉 Digite *SIM* para confirmar e abrir o chamado, ou *NÃO* para reenviar os dados.`;
-      }
-      break;
-
-    case 'COLLECTING_INFO':
-      session.data.rawInput = processedText;
-      session.data.extracted = parseUserData(processedText, userPhone);
-      session.step = 'CONFIRMATION';
-
-      botReply = `Recebemos seus dados! Por favor, *confirme se as informações estão corretas*:\n\n` +
-                 `👤 *Nome:* ${session.data.extracted.nome}\n` +
-                 `📧 *E-mail:* ${session.data.extracted.email}\n` +
-                 `📱 *Celular:* ${session.data.extracted.celular}\n` +
-                 `📝 *Ocorrência:* ${session.data.extracted.ocorrencia}\n\n` +
-                 `👉 Digite *SIM* para confirmar e abrir o chamado, ou *NÃO* para reenviar os dados.`;
-      break;
-
-    case 'CONFIRMATION':
-      const cleanMsg = processedText.trim().toUpperCase();
-      if (cleanMsg.includes('SIM') || cleanMsg.includes('CORRETO') || cleanMsg.includes('OK')) {
-        const protocolo = 'DIX-' + Math.floor(100000 + Math.random() * 900000);
-        botReply = `✅ *Chamado aberto com sucesso!*\n\n` +
-                   `📋 *Protocolo:* ${protocolo}\n` +
-                   `Agradecemos o contato. Por favor, aguarde que em instantes você será direcionado para o atendimento humanizado de nossa equipe.\n\n` +
-                   `Tenha um excelente dia!`;
-        // Reseta ou arquiva sessão
-        delete sessions[userPhone];
-      } else if (cleanMsg.includes('NÃO') || cleanMsg.includes('NAO')) {
-        session.step = 'COLLECTING_INFO';
-        botReply = `⚠️ Sem problemas! Vamos corrigir.\n\n` +
-                   `Por favor, envie novamente (por texto ou áudio) o seu *Nome*, *E-mail*, *Celular* e a descrição da ocorrência:`;
-      } else {
-        botReply = `Não entendi. Por favor, responda apenas *SIM* para confirmar os dados ou *NÃO* para reenviá-los.`;
-      }
-      break;
-
-    default:
-      botReply = "Olá! Como podemos te ajudar hoje?";
-      session.step = 'START';
-  }
-
-  return res.json({
-    recipient: userPhone,
-    reply: botReply,
-    currentStep: session.step
+// Retorna status atual, QR Code e configurações
+app.get('/api/status', async (req, res) => {
+  const qr = await getQrCode();
+  res.json({
+    settings: agentSettings,
+    instanceName: INSTANCE_NAME,
+    qrCode: qr?.base64 || qr?.code || null,
+    connected: qr?.count === 0 || qr?.status === 'open'
   });
 });
 
-// Helper de extração com regex / fallback
-function parseUserData(text, phone) {
-  const emailMatch = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  const phoneMatch = text.match(/\(?\d{2}\)?\s?\d{4,5}-?\d{4}/);
-  
-  return {
-    nome: extractName(text) || "Cliente",
-    email: emailMatch ? emailMatch[0] : "Não informado",
-    celular: phoneMatch ? phoneMatch[0] : phone,
-    ocorrencia: text.replace(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/, '').trim() || "Suporte técnico geral"
-  };
-}
-
-function extractName(text) {
-  const nameMatch = text.match(/(?:meu nome é|sou o|sou a|chamo)\s+([A-ZÀ-Úa-zà-ú]+(?:\s+[A-ZÀ-Úa-zà-ú]+)?)/i);
-  return nameMatch ? nameMatch[1] : null;
-}
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`🚀 Agente WhatsApp DIX BPO rodando na porta ${PORT}`);
+// Liga / Desliga o agente
+app.post('/api/toggle', (req, res) => {
+  const { enabled } = req.body;
+  agentSettings.enabled = !!enabled;
+  console.log(`🔄 Agente ${agentSettings.enabled ? 'ATIVADO' : 'DESATIVADO'} pelo painel.`);
+  res.json({ success: true, settings: agentSettings });
 });
 
+// Atualiza Whitelist de números
+app.post('/api/whitelist', (req, res) => {
+  const { whitelistOnly, numbers } = req.body;
+  agentSettings.whitelistOnly = !!whitelistOnly;
+  if (Array.isArray(numbers)) {
+    agentSettings.whitelistNumbers = numbers.map(n => n.replace(/\D/g, '')).filter(Boolean);
+  }
+  console.log(`🔒 Whitelist atualizada:`, agentSettings.whitelistNumbers);
+  res.json({ success: true, settings: agentSettings });
+});
+
+// ==========================================
+// WEBHOOK PRINCIPAL DA EVOLUTION API
+// ==========================================
+app.post('/webhook/whatsapp', async (req, res) => {
+  // Responde imediatamente 200 OK para o WhatsApp/Evolution não reenviar
+  res.status(200).json({ status: 'received' });
+
+  try {
+    const body = req.body;
+    const data = body.data || body;
+
+    // 1. Ignora mensagens enviadas pelo próprio bot (fromMe)
+    if (data?.key?.fromMe) {
+      return;
+    }
+
+    const remoteJid = data?.key?.remoteJid || '';
+    if (!remoteJid || remoteJid.includes('@g.us')) {
+      // Ignora grupos do WhatsApp
+      return;
+    }
+
+    const cleanNumber = remoteJid.replace('@s.whatsapp.net', '').replace(/\D/g, '');
+
+    // 2. CHECAGEM DE SEGURANÇA 1: O Agente está ativado?
+    if (!agentSettings.enabled) {
+      console.log(`⏸️ [Ignorado] Mensagem de ${cleanNumber}: Agente está DESLIGADO.`);
+      return;
+    }
+
+    // 3. CHECAGEM DE SEGURANÇA 2: Whitelist ativada?
+    if (agentSettings.whitelistOnly) {
+      const isAllowed = agentSettings.whitelistNumbers.some(num => cleanNumber.includes(num) || num.includes(cleanNumber));
+      if (!isAllowed) {
+        console.log(`🛡️ [Proteção] Mensagem de ${cleanNumber} IGNORADA: Número não está na Whitelist.`);
+        return;
+      }
+    }
+
+    // 4. Extração do conteúdo da mensagem (Texto ou Áudio)
+    let msg = data.message;
+    // Desembrulha mensagens aninhadas do WhatsApp
+    while (
+      msg?.ephemeralMessage?.message ||
+      msg?.viewOnceMessage?.message ||
+      msg?.viewOnceMessageV2?.message
+    ) {
+      msg = msg.ephemeralMessage?.message || msg.viewOnceMessage?.message || msg.viewOnceMessageV2?.message;
+    }
+
+    let userText = msg?.conversation || msg?.extendedTextMessage?.text || '';
+    const isAudio = !!msg?.audioMessage;
+
+    // Se for áudio, transcreve com Whisper
+    if (isAudio) {
+      console.log(`🎙️ [Áudio Detectado] Recebido de ${cleanNumber}. Buscando mídia na Evolution API...`);
+      
+      let base64Audio = data.base64 || msg?.base64;
+      if (!base64Audio) {
+        base64Audio = await getBase64FromMediaMessage(data.key);
+      }
+
+      if (base64Audio) {
+        console.log(`⚡ [Groq Whisper] Transcrevendo áudio em alta velocidade...`);
+        const transcription = await transcribeAudioBase64(base64Audio, msg.audioMessage?.mimetype || 'audio/ogg');
+        console.log(`📝 [Áudio Transcrito]: "${transcription}"`);
+        userText = transcription;
+      } else {
+        console.warn(`⚠️ Não foi possível obter o base64 do áudio de ${cleanNumber}.`);
+      }
+    }
+
+    if (!userText || !userText.trim()) {
+      return;
+    }
+
+    // 5. CHECAGEM DE SEGURANÇA 3: Palavra-chave (se configurada)
+    if (agentSettings.triggerKeyword && !sessions[cleanNumber]) {
+      if (!userText.toLowerCase().includes(agentSettings.triggerKeyword)) {
+        console.log(`🔍 [Gatilho] Mensagem ignorada: não contém a palavra-chave "${agentSettings.triggerKeyword}".`);
+        return;
+      }
+    }
+
+    // 6. Gerenciamento de Histórico e Conversação com a LLM
+    if (!sessions[cleanNumber]) {
+      sessions[cleanNumber] = {
+        history: [],
+        state: 'START'
+      };
+    }
+
+    const session = sessions[cleanNumber];
+    console.log(`💬 [Processando IA] Para ${cleanNumber}: "${userText}"`);
+
+    const result = await processAgentConversation(session.history, userText, session.state);
+
+    // Atualiza histórico (mantém últimas 8 mensagens para contexto)
+    session.history.push({ role: 'user', content: userText });
+    session.history.push({ role: 'assistant', content: result.replyText });
+    if (session.history.length > 8) {
+      session.history = session.history.slice(-8);
+    }
+
+    console.log(`🤖 [Resposta Gerada]:\n${result.replyText}\n`);
+
+    // 7. Despacha mensagem real de volta no WhatsApp do usuário
+    await sendTextMessage(remoteJid, result.replyText);
+    console.log(`🚀 Mensagem enviada com sucesso para ${cleanNumber} no WhatsApp!\n`);
+
+  } catch (err) {
+    console.error('❌ Erro no webhook do WhatsApp:', err);
+  }
+});
+
+// Inicialização do Servidor
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+  console.log(`\n======================================================`);
+  console.log(`🚀 AGENTE DE SUPORTE DIX BPO RODANDO NA PORTA ${PORT}`);
+  console.log(`📱 Painel de Controle: http://localhost:${PORT}`);
+  console.log(`======================================================\n`);
+
+  // Garante que a instância existe na Evolution API
+  await ensureInstance();
+  
+  // Aponta o Webhook da Evolution para o nosso servidor local
+  await setWebhook(`http://host.docker.internal:${PORT}/webhook/whatsapp`);
+});

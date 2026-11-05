@@ -3,125 +3,108 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Simulador WhatsApp — Agente de Suporte DIX BPO</title>
+  <title>DIX BPO — Painel de Controle do Agente WhatsApp</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  <style>
-    .chat-bg {
-      background-color: #0b141a;
-      background-image: radial-gradient(#1f2c34 1px, transparent 1px);
-      background-size: 20px 20px;
-    }
-    .custom-scrollbar::-webkit-scrollbar {
-      width: 6px;
-    }
-    .custom-scrollbar::-webkit-scrollbar-thumb {
-      background: #2a3942;
-      border-radius: 3px;
-    }
-  </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6">
 
-  <div class="w-full max-w-4xl grid grid-cols-1 md:grid-cols-3 gap-6 bg-slate-950 p-6 rounded-2xl border border-slate-800 shadow-2xl">
+  <div class="max-w-4xl mx-auto space-y-6">
     
-    <!-- Painel Lateral: Instruções e Cenários Prontos -->
-    <div class="md:col-span-1 space-y-4 flex flex-col justify-between">
-      <div>
-        <div class="flex items-center gap-2 mb-3">
-          <div class="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
-          <h2 class="font-bold text-lg text-emerald-400">DIX BPO • Suporte AI</h2>
+    <!-- Topo -->
+    <div class="flex items-center justify-between bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl">
+      <div class="flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-600 flex items-center justify-center font-bold text-xl shadow-lg shadow-emerald-500/20">
+          DIX
         </div>
-        <p class="text-xs text-slate-400 mb-4 leading-relaxed">
-          Simulador visual do <strong>Desafio 1</strong>. Teste o fluxo de pré-atendimento com texto ou simulação de áudio (Whisper STT).
-        </p>
-
-        <div class="space-y-2">
-          <label class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cenários de Teste Rápido:</label>
-          <button onclick="sendQuickMessage('Olá, gostaria de abrir um chamado')" 
-                  class="w-full text-left text-xs bg-slate-800 hover:bg-slate-700 p-2.5 rounded-lg border border-slate-700 transition flex items-center justify-between">
-            <span>👋 Início: "Olá..."</span>
-            <i class="fa-solid fa-arrow-right text-[10px] text-slate-400"></i>
-          </button>
-          <button onclick="sendQuickAudio('Meu nome é Arthur Fogolin, e-mail arthurfogolinrocha01@gmail.com, celular 11988887777. Estou com problema no faturamento do sistema.')" 
-                  class="w-full text-left text-xs bg-emerald-950/40 hover:bg-emerald-900/40 border border-emerald-700/50 p-2.5 rounded-lg transition flex items-center justify-between text-emerald-300">
-            <span>🎙️ Simular Áudio Completo</span>
-            <i class="fa-solid fa-microphone text-[10px]"></i>
-          </button>
-          <button onclick="sendQuickMessage('SIM, está tudo correto')" 
-                  class="w-full text-left text-xs bg-indigo-950/40 hover:bg-indigo-900/40 border border-indigo-700/50 p-2.5 rounded-lg transition flex items-center justify-between text-indigo-300">
-            <span>✅ Confirmar: "SIM"</span>
-            <i class="fa-solid fa-check text-[10px]"></i>
-          </button>
-          <button onclick="sendQuickMessage('NÃO, os dados estão errados')" 
-                  class="w-full text-left text-xs bg-rose-950/40 hover:bg-rose-900/40 border border-rose-700/50 p-2.5 rounded-lg transition flex items-center justify-between text-rose-300">
-            <span>❌ Recusar: "NÃO"</span>
-            <i class="fa-solid fa-xmark text-[10px]"></i>
-          </button>
+        <div>
+          <h1 class="text-xl font-bold flex items-center gap-2">
+            Agente Inteligente de Suporte DIX BPO
+            <span id="badgeStatus" class="text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">
+              Carregando...
+            </span>
+          </h1>
+          <p class="text-xs text-slate-400">Integração WhatsApp Real • Groq Whisper (STT) • Llama 3.3 70B • Evolution API</p>
         </div>
       </div>
 
-      <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
-        <div class="text-slate-300 font-semibold mb-1">Status da Máquina de Estados:</div>
-        <div>Estado Atual: <span id="lblState" class="font-mono text-emerald-400 font-bold">START</span></div>
-        <div>Protocolo: <span id="lblProtocol" class="font-mono text-indigo-400 font-bold">-</span></div>
-      </div>
+      <!-- Botão Master Liga / Desliga -->
+      <button id="btnToggleAgent" onclick="toggleAgent()" 
+              class="px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30">
+        <i class="fa-solid fa-power-off"></i>
+        <span id="txtBtnToggle">Carregando...</span>
+      </button>
     </div>
 
-    <!-- Celular / Interface WhatsApp -->
-    <div class="md:col-span-2 flex flex-col h-[600px] bg-[#111b21] rounded-2xl overflow-hidden border border-slate-800 shadow-inner">
-      
-      <!-- Topo WhatsApp -->
-      <div class="bg-[#202c33] px-4 py-3 flex items-center justify-between border-b border-[#2a3942]">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold text-sm shadow">
-            DIX
+    <!-- Grid: QR Code de Conexão + Travas de Segurança -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+      <!-- Card Conexão WhatsApp -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl flex flex-col justify-between">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+            <i class="fa-brands fa-whatsapp text-emerald-400 text-base"></i>
+            Conexão WhatsApp (Instância dix-suporte)
+          </h2>
+          <p class="text-xs text-slate-400 mb-4 leading-relaxed">
+            Abra o WhatsApp no seu celular, vá em <strong>Aparelhos Conectados</strong> > <strong>Conectar um aparelho</strong> e aponte a câmera para o QR Code abaixo:
+          </p>
+        </div>
+
+        <div class="flex flex-col items-center justify-center p-6 bg-slate-950 rounded-xl border border-slate-800 min-h-[260px]">
+          <div id="qrLoading" class="text-xs text-slate-400 flex items-center gap-2">
+            <i class="fa-solid fa-spinner fa-spin text-emerald-400"></i> Buscando conexão...
           </div>
+          <img id="imgQrCode" class="w-56 h-56 rounded-lg bg-white p-2 shadow-lg hidden" alt="QR Code WhatsApp" />
+          <div id="connSuccess" class="text-center space-y-2 hidden">
+            <div class="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-2xl border border-emerald-500/40">
+              <i class="fa-solid fa-check"></i>
+            </div>
+            <div class="font-bold text-sm text-slate-200">WhatsApp Conectado com Sucesso!</div>
+            <div class="text-xs text-slate-400">Pronto para receber mensagens e áudios reais.</div>
+          </div>
+        </div>
+
+        <button onclick="fetchStatus()" class="mt-4 text-xs text-slate-400 hover:text-slate-200 transition text-center flex items-center justify-center gap-1.5">
+          <i class="fa-solid fa-rotate-right"></i> Atualizar Status da Conexão
+        </button>
+      </div>
+
+      <!-- Card Travas de Segurança (Proteção do seu WhatsApp pessoal) -->
+      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl shadow-xl space-y-4">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 mb-1 flex items-center gap-2">
+          <i class="fa-solid fa-shield-halved"></i>
+          Proteção do WhatsApp Pessoal
+        </h2>
+        <p class="text-xs text-slate-400 leading-relaxed">
+          Garanta que o agente <strong>NÃO</strong> responda seus amigos, família ou conversas normais do dia a dia.
+        </p>
+
+        <!-- Toggle Whitelist -->
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800 flex items-center justify-between">
           <div>
-            <h3 class="font-semibold text-sm text-slate-100 flex items-center gap-1.5">
-              DIX BPO Atendimento
-              <i class="fa-solid fa-circle-check text-emerald-400 text-xs" title="Conta Comercial Verificada"></i>
-            </h3>
-            <span class="text-[11px] text-emerald-400 flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> online
-            </span>
+            <div class="text-xs font-semibold text-slate-200">Ativar Modo Whitelist</div>
+            <div class="text-[11px] text-slate-400">O bot só responderá exclusivamente números autorizados.</div>
           </div>
+          <input type="checkbox" id="chkWhitelist" onchange="saveWhitelistSettings()" class="w-5 h-5 accent-emerald-500 cursor-pointer">
         </div>
-        <button onclick="resetConversation()" title="Reiniciar conversa" class="text-slate-400 hover:text-slate-200 text-xs px-2 py-1 rounded bg-[#111b21]">
-          <i class="fa-solid fa-rotate-right mr-1"></i> Reiniciar
-        </button>
-      </div>
 
-      <!-- Área de Mensagens -->
-      <div id="messagesArea" class="flex-1 p-4 overflow-y-auto space-y-3 chat-bg custom-scrollbar">
-        <!-- Msg Boas-vindas -->
-        <div class="flex justify-start">
-          <div class="max-w-[85%] bg-[#202c33] text-slate-200 text-xs p-3 rounded-2xl rounded-tl-sm shadow whitespace-pre-line border border-[#2a3942]">
-            👋 Olá! Seja bem-vindo ao suporte <strong>DIX BPO</strong>.
-            
-            Por favor, me informe (por texto ou por áudio) os seus dados:
-            • <strong>Nome Completo</strong>
-            • <strong>E-mail</strong>
-            • <strong>Celular</strong>
-
-            Você também pode enviar um áudio ou imagem explicando com detalhes a sua ocorrência!
-            <div class="text-[10px] text-slate-400 text-right mt-1.5">17:30</div>
-          </div>
+        <!-- Input de Números Permitidos -->
+        <div class="space-y-1.5">
+          <label class="text-xs font-semibold text-slate-300">Números Permitidos para Teste (com DDD):</label>
+          <textarea id="txtWhitelistNumbers" rows="3" placeholder="Ex: 5511999998888, 556392554862" 
+                    class="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono"></textarea>
+          <div class="text-[11px] text-slate-500">Insira os números separados por vírgula.</div>
         </div>
-      </div>
 
-      <!-- Barra de Input -->
-      <div class="bg-[#202c33] p-3 flex items-center gap-2 border-t border-[#2a3942]">
-        <input id="txtInput" type="text" placeholder="Digite uma mensagem..." 
-               onkeydown="if(event.key === 'Enter') handleSendText()"
-               class="flex-1 bg-[#2a3942] text-slate-100 text-xs px-3.5 py-2.5 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500 placeholder-slate-400">
-        
-        <button onclick="handleSendText()" class="w-9 h-9 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center transition">
-          <i class="fa-solid fa-paper-plane text-xs"></i>
+        <button onclick="saveWhitelistSettings()" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-xl border border-slate-700 transition">
+          Salvar Configurações de Segurança
         </button>
-        <button onclick="handleSendAudioPrompt()" title="Gravar / Simular Áudio" class="w-9 h-9 rounded-lg bg-slate-700 hover:bg-slate-600 text-emerald-400 flex items-center justify-center transition">
-          <i class="fa-solid fa-microphone text-xs"></i>
-        </button>
+
+        <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-800 text-[11px] text-slate-400 space-y-1">
+          <div class="text-slate-300 font-semibold mb-1">💡 Dica para a Reunião com a DIX:</div>
+          <div>Quando for a hora da demonstração, basta colocar o número do avaliador na lista acima (ou desmarcar a whitelist por 5 minutos) e pedir para ele mandar um áudio pro seu número!</div>
+        </div>
       </div>
 
     </div>
@@ -129,119 +112,87 @@
   </div>
 
   <script>
-    const userPhone = "5511999998888";
+    let isAgentEnabled = true;
 
-    async function sendToBackend(payload) {
+    async function fetchStatus() {
       try {
-        const res = await fetch('/webhook/whatsapp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        return await res.json();
+        const res = await fetch('/api/status');
+        const data = await res.json();
+
+        // 1. Status do Agente (Botão Master)
+        isAgentEnabled = !!data.settings.enabled;
+        const btn = document.getElementById('btnToggleAgent');
+        const txtBtn = document.getElementById('txtBtnToggle');
+        const badge = document.getElementById('badgeStatus');
+
+        if (isAgentEnabled) {
+          btn.className = "px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/30";
+          txtBtn.innerText = "Agente Ligado (ON)";
+          badge.className = "text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold";
+          badge.innerText = "Ativo";
+        } else {
+          btn.className = "px-5 py-2.5 rounded-xl font-semibold text-sm transition flex items-center gap-2 bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30";
+          txtBtn.innerText = "Agente Pausado (OFF)";
+          badge.className = "text-xs px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 font-semibold";
+          badge.innerText = "Pausado";
+        }
+
+        // 2. Status do QR Code / Conexão
+        const qrLoading = document.getElementById('qrLoading');
+        const imgQr = document.getElementById('imgQrCode');
+        const connSuccess = document.getElementById('connSuccess');
+
+        if (data.connected) {
+          qrLoading.classList.add('hidden');
+          imgQr.classList.add('hidden');
+          connSuccess.classList.remove('hidden');
+        } else if (data.qrCode) {
+          connSuccess.classList.add('hidden');
+          qrLoading.classList.add('hidden');
+          imgQr.src = data.qrCode.startsWith('data:image') ? data.qrCode : `data:image/png;base64,${data.qrCode}`;
+          imgQr.classList.remove('hidden');
+        } else {
+          qrLoading.classList.remove('hidden');
+          imgQr.classList.add('hidden');
+          connSuccess.classList.add('hidden');
+        }
+
+        // 3. Configurações de Segurança
+        document.getElementById('chkWhitelist').checked = !!data.settings.whitelistOnly;
+        document.getElementById('txtWhitelistNumbers').value = (data.settings.whitelistNumbers || []).join(', ');
+
       } catch (err) {
         console.error(err);
-        return { reply: "Erro de conexão com o servidor do agente." };
       }
     }
 
-    function appendMessage(text, isUser = false, isAudio = false) {
-      const area = document.getElementById('messagesArea');
-      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-      const msgDiv = document.createElement('div');
-      msgDiv.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
-
-      let contentHtml = '';
-      if (isAudio) {
-        contentHtml = `
-          <div class="flex items-center gap-2 mb-1 text-emerald-300 font-semibold">
-            <i class="fa-solid fa-waveform-lines fa-play"></i> <span>Áudio Transcrito (Whisper STT):</span>
-          </div>
-          <div class="italic text-slate-300">"${text}"</div>
-        `;
-      } else {
-        contentHtml = text.replace(/\\n/g, '<br>').replace(/\*(.*?)\*/g, '<strong>$1</strong>');
-      }
-
-      msgDiv.innerHTML = `
-        <div class="max-w-[85%] ${isUser ? 'bg-[#005c4b] text-white rounded-tr-sm' : 'bg-[#202c33] text-slate-200 rounded-tl-sm border border-[#2a3942]'} text-xs p-3 rounded-2xl shadow whitespace-pre-line">
-          ${contentHtml}
-          <div class="text-[10px] ${isUser ? 'text-emerald-200' : 'text-slate-400'} text-right mt-1.5 flex items-center justify-end gap-1">
-            <span>${time}</span>
-            ${isUser ? '<i class="fa-solid fa-check-double text-[9px] text-sky-400"></i>' : ''}
-          </div>
-        </div>
-      `;
-
-      area.appendChild(msgDiv);
-      area.scrollTop = area.scrollHeight;
-    }
-
-    async function handleSendText() {
-      const input = document.getElementById('txtInput');
-      const text = input.value.trim();
-      if (!text) return;
-
-      input.value = '';
-      appendMessage(text, true);
-
-      const resp = await sendToBackend({
-        sender: userPhone,
-        text: text
+    async function toggleAgent() {
+      const nextState = !isAgentEnabled;
+      await fetch('/api/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: nextState })
       });
-
-      if (resp && resp.reply) {
-        appendMessage(resp.reply, false);
-        if (resp.currentStep) {
-          document.getElementById('lblState').innerText = resp.currentStep;
-        }
-        if (resp.reply.includes('Protocolo:')) {
-          const match = resp.reply.match(/DIX-\d+/);
-          if (match) document.getElementById('lblProtocol').innerText = match[0];
-        }
-      }
+      fetchStatus();
     }
 
-    async function sendQuickMessage(text) {
-      appendMessage(text, true);
-      const resp = await sendToBackend({ sender: userPhone, text: text });
-      if (resp && resp.reply) {
-        appendMessage(resp.reply, false);
-        if (resp.currentStep) document.getElementById('lblState').innerText = resp.currentStep;
-        if (resp.reply.includes('Protocolo:')) {
-          const match = resp.reply.match(/DIX-\d+/);
-          if (match) document.getElementById('lblProtocol').innerText = match[0];
-        }
-      }
-    }
+    async function saveWhitelistSettings() {
+      const whitelistOnly = document.getElementById('chkWhitelist').checked;
+      const rawNumbers = document.getElementById('txtWhitelistNumbers').value;
+      const numbers = rawNumbers.split(',').map(s => s.trim()).filter(Boolean);
 
-    async function sendQuickAudio(transcript) {
-      appendMessage(transcript, true, true);
-      const resp = await sendToBackend({
-        sender: userPhone,
-        messageType: 'audio',
-        audio: { mockTranscript: transcript }
+      await fetch('/api/whitelist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ whitelistOnly, numbers })
       });
-      if (resp && resp.reply) {
-        appendMessage(resp.reply, false);
-        if (resp.currentStep) document.getElementById('lblState').innerText = resp.currentStep;
-      }
+      alert('Configurações de segurança salvas com sucesso!');
+      fetchStatus();
     }
 
-    function handleSendAudioPrompt() {
-      const transcript = prompt("Simulador de Áudio (Whisper): Digite o que o usuário falaria no áudio:", "Meu nome é Arthur Fogolin, e-mail arthurfogolinrocha01@gmail.com, celular 11988887777. Estou com dúvida no faturamento.");
-      if (transcript) {
-        sendQuickAudio(transcript);
-      }
-    }
-
-    function resetConversation() {
-      document.getElementById('messagesArea').innerHTML = '';
-      document.getElementById('lblState').innerText = 'START';
-      document.getElementById('lblProtocol').innerText = '-';
-      sendQuickMessage('Oi');
-    }
+    // Polling a cada 5 segundos para atualizar status do QR Code
+    fetchStatus();
+    setInterval(fetchStatus, 5000);
   </script>
 </body>
 </html>
